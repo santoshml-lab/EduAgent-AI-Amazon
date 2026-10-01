@@ -1,3 +1,6 @@
+from groq import Groq
+import os
+
 from tools import study_plan, learning_resources, calculate
 
 
