@@ -7,11 +7,18 @@ from tools import study_plan, learning_resources, calculate
 class EduAgent:
 
     def __init__(self):
-        self.name = "EduAgent AI"
-        self.description = (
-            "An agentic AI learning assistant for study planning, "
-            "educational support, research, and productivity."
-        )
+    self.name = "EduAgent AI"
+    self.description = (
+        "An agentic AI learning assistant for study planning, "
+        "educational support, research, and productivity."
+    )
+
+    self.client = Groq(
+        api_key=os.getenv("GROQ_API_KEY")
+    )
+        
+        
+            
 
     def process(self, user_input: str):
 
