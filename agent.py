@@ -63,13 +63,21 @@ Do not explain your decision.
             max_tokens=200
         )
 
-        ai_text = (response.choices[0].message.content or "").strip()
+        message = response.choices[0].message
+
+        ai_text = (message.content or "").strip()
 
         if not ai_text:
             return {
-                "status": "error",
-                "message": "AI returned an empty tool decision."
+               "status": "error",
+               "message": "AI returned an empty tool decision.",
+               "finish_reason": response.choices[0].finish_reason,
+               "response": str(message)
     }
+
+        
+            
+                
 
         # Convert AI response into JSON
         try:
