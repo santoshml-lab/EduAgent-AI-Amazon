@@ -16,6 +16,10 @@ class AgentRequest(BaseModel):
     user_input: str
 
 
+class GroqRequest(BaseModel):
+    message: str
+
+
 @app.get("/")
 def root():
     return {
@@ -36,3 +40,30 @@ def run_agent(request: AgentRequest):
     result = agent.process(request.user_input)
 
     return result
+
+
+@app.post("/groq-test")
+def groq_test(request: GroqRequest):
+    response = agent.client.chat.completions.create(
+        model="openai/gpt-oss-20b",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are EduAgent AI, an educational AI assistant. "
+                    "Give concise, helpful answers."
+                )
+            },
+            {
+                "role": "user",
+                "content": request.message
+            }
+        ],
+        temperature=0.2,
+        max_tokens=300
+    )
+
+    return {
+        "status": "success",
+        "response": response.choices[0].message.content
+    }
