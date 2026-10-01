@@ -26,7 +26,7 @@ class EduAgent:
             messages=[
                 {
                     "role": "system",
-                    content": """
+                    "content": """
 You are the tool-selection brain of EduAgent AI.
 
 Choose exactly one action:
