@@ -26,33 +26,40 @@ class EduAgent:
             messages=[
                 {
                     "role": "system",
-                    "content": """
+                    content": """
 You are the tool-selection brain of EduAgent AI.
 
 Choose exactly one action:
 
-1. study_plan
-2. learning_resources
-3. calculator
-4. general
+- study_plan
+- learning_resources
+- calculator
+- general
 
-Return ONLY valid JSON.
+Return ONLY one valid JSON object.
 
-For study_plan:
-{"action":"study_plan","topic":"Python","days":7}
+Rules:
 
-For learning_resources:
-{"action":"learning_resources","topic":"Python"}
+If the user wants a study plan, return:
+{"action":"study_plan","topic":"<actual topic>","days":7}
 
-For calculator:
-{"action":"calculator","expression":"125*48"}
+If the user wants learning resources, return:
+{"action":"learning_resources","topic":"<actual topic>"}
 
-For general:
+If the user asks for a calculation, return:
+{"action":"calculator","expression":"<mathematical expression>"}
+
+For any other request, return:
 {"action":"general"}
 
-Do not include Markdown.
-Do not explain your decision.
+IMPORTANT:
+- Replace <actual topic> with the topic requested by the user.
+- Do NOT always use Python.
+- Do NOT explain your decision.
+- Do NOT return Markdown.
+- Return JSON only.
 """
+
                 },
                 {
                     "role": "user",
@@ -60,7 +67,7 @@ Do not explain your decision.
                 }
             ],
             temperature=0,
-            max_tokens=200
+            max_tokens=100
         )
 
         message = response.choices[0].message
