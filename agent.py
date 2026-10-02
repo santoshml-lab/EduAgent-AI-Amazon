@@ -22,76 +22,203 @@ class EduAgent:
 
     def process(self, user_input: str):
 
-        # Step 1: Ask the AI to identify the user's intent
-        decision = self.get_tool_decision(user_input)
+    trace = [
+        {
+            "step": 1,
+            "stage": "request",
+            "message": "User request received."
+        }
+    ]
 
-        if decision is None:
-            return {
-                "status": "error",
-                "agent": self.name,
-                "message": "AI could not determine the user's intent."
-            }
+    decision = self.get_tool_decision(user_input)
 
-        action = decision.get("action")
+    if decision is None:
 
-        # Step 2: Execute the selected tool
-        if action == "study_plan":
+        trace.append({
+            "step": 2,
+            "stage": "intent_detection",
+            "message": "Unable to determine user intent."
+        })
 
-            tool_result = self.tool_manager.execute_tool(
-                "study_plan",
-                {
-                    "topic": decision.get("topic", "General"),
-                    "days": decision.get("days", 7)
-                }
-            )
-
-            return self.build_tool_response(
-                user_input,
-                action,
-                tool_result
-            )
-
-        if action == "learning_resources":
-
-            tool_result = self.tool_manager.execute_tool(
-                "learning_resources",
-                {
-                    "topic": decision.get("topic", "General")
-                }
-            )
-
-            return self.build_tool_response(
-                user_input,
-                action,
-                tool_result
-            )
-
-        if action == "calculator":
-
-            tool_result = self.tool_manager.execute_tool(
-                "calculator",
-                {
-                    "expression": decision.get("expression", "")
-                }
-            )
-
-            return self.build_tool_response(
-                user_input,
-                action,
-                tool_result
-            )
-
-        # Step 3: General AI response
-        if action == "general":
-            return self.general_response(user_input)
-
-        # Step 4: Handle unexpected actions
         return {
             "status": "error",
             "agent": self.name,
-            "message": "AI selected an unknown action.",
-            "action": action
+            "message": "AI could not determine the user's intent.",
+            "trace": trace
         }
+
+    action = decision.get("action")
+
+    trace.append({
+        "step": 2,
+        "stage": "intent_detection",
+        "message": f"Intent detected: {action}."
+    })
+
+    if action == "study_plan":
+
+        trace.append({
+            "step": 3,
+            "stage": "tool_selection",
+            "message": "Study Plan Tool selected."
+        })
+
+        tool_result = self.tool_manager.execute_tool(
+            "study_plan",
+            {
+                "topic": decision.get(
+                    "topic",
+                    "General"
+                ),
+                "days": decision.get(
+                    "days",
+                    7
+                )
+            }
+        )
+
+        trace.append({
+            "step": 4,
+            "stage": "tool_execution",
+            "message": "Study Plan Tool executed successfully."
+        })
+
+        result = self.build_tool_response(
+            user_input,
+            action,
+            tool_result
+        )
+
+        result["trace"] = trace + [
+            {
+                "step": 5,
+                "stage": "response",
+                "message": "AI response generated."
+            }
+        ]
+
+        return result
+
+    if action == "learning_resources":
+
+        trace.append({
+            "step": 3,
+            "stage": "tool_selection",
+            "message": "Learning Resources Tool selected."
+        })
+
+        tool_result = self.tool_manager.execute_tool(
+            "learning_resources",
+            {
+                "topic": decision.get(
+                    "topic",
+                    "General"
+                )
+            }
+        )
+
+        trace.append({
+            "step": 4,
+            "stage": "tool_execution",
+            "message": "Learning Resources Tool executed successfully."
+        })
+
+        result = self.build_tool_response(
+            user_input,
+            action,
+            tool_result
+        )
+
+        result["trace"] = trace + [
+            {
+                "step": 5,
+                "stage": "response",
+                "message": "AI response generated."
+            }
+        ]
+
+        return result
+
+    if action == "calculator":
+
+        trace.append({
+            "step": 3,
+            "stage": "tool_selection",
+            "message": "Calculator Tool selected."
+        })
+
+        tool_result = self.tool_manager.execute_tool(
+            "calculator",
+            {
+                "expression": decision.get(
+                    "expression",
+                    ""
+                )
+            }
+        )
+
+        trace.append({
+            "step": 4,
+            "stage": "tool_execution",
+            "message": "Calculator Tool executed successfully."
+        })
+
+        result = self.build_tool_response(
+            user_input,
+            action,
+            tool_result
+        )
+
+        result["trace"] = trace + [
+            {
+                "step": 5,
+                "stage": "response",
+                "message": "AI response generated."
+            }
+        ]
+
+        return result
+
+    if action == "general":
+
+        trace.append({
+            "step": 3,
+            "stage": "reasoning",
+            "message": "General educational response selected."
+        })
+
+        result = self.general_response(
+            user_input
+        )
+
+        result["trace"] = trace + [
+            {
+                "step": 4,
+                "stage": "response",
+                "message": "AI response generated."
+            }
+        ]
+
+        return result
+
+    trace.append({
+        "step": 3,
+        "stage": "error",
+        "message": "Unknown action selected."
+    })
+
+    return {
+        "status": "error",
+        "agent": self.name,
+        "message": "AI selected an unknown action.",
+        "action": action,
+        "trace": trace
+    }
+
+        
+        
+        
+          
 
     def get_tool_decision(self, user_input: str):
 
