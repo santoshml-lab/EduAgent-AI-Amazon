@@ -58,8 +58,7 @@ IMPORTANT:
 - Do NOT explain your decision.
 - Do NOT return Markdown.
 - Return JSON only.
-"""
-
+""",
                 },
                 {
                     "role": "user",
@@ -76,15 +75,11 @@ IMPORTANT:
 
         if not ai_text:
             return {
-               "status": "error",
-               "message": "AI returned an empty tool decision.",
-               "finish_reason": response.choices[0].finish_reason,
-               "response": str(message)
-    }
-
-        
-            
-                
+                "status": "error",
+                "message": "AI returned an empty tool decision.",
+                "finish_reason": response.choices[0].finish_reason,
+                "response": str(message)
+            }
 
         # Convert AI response into JSON
         try:
@@ -123,7 +118,8 @@ IMPORTANT:
                     "role": "system",
                     "content": (
                         "You are EduAgent AI, an educational AI assistant. "
-                        "Give concise, clear and helpful answers."
+                        "Give concise, clear and helpful answers. "
+                        "Return the answer as valid JSON."
                     )
                 },
                 {
