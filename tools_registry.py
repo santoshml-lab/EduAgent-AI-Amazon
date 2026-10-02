@@ -1,5 +1,5 @@
 from tool import ToolManager
-from calculator_tool import calculator
+from tools import study_plan, learning_resources, calculate
 
 
 def create_tool_manager():
@@ -9,6 +9,8 @@ def create_tool_manager():
 
     manager = ToolManager()
 
-    manager.register_tool("calculator", calculator)
+    manager.register_tool("study_plan", study_plan)
+    manager.register_tool("learning_resources", learning_resources)
+    manager.register_tool("calculator", calculate)
 
     return manager
