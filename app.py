@@ -4,11 +4,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from agent import EduAgent
 
+
 app = FastAPI(
     title="EduAgent AI - Amazon",
     description="Agentic AI learning assistant for the Amazon Developer Hackathon.",
     version="1.0.0"
 )
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -31,6 +34,37 @@ class GroqRequest(BaseModel):
     message: str
 
 
+def normalize_result(result):
+    """
+    Convert the agent result into a frontend-friendly response.
+    """
+
+    normalized = dict(result)
+
+    tool_result = result.get("tool_result")
+
+    if isinstance(tool_result, dict):
+        if "message" in tool_result:
+            normalized["message"] = tool_result["message"]
+
+        if "result" in tool_result:
+            normalized["result"] = tool_result["result"]
+
+        if "resources" in tool_result:
+            normalized["resources"] = tool_result["resources"]
+
+        if "topic" in tool_result:
+            normalized["topic"] = tool_result["topic"]
+
+        if "days" in tool_result:
+            normalized["days"] = tool_result["days"]
+
+        if "expression" in tool_result:
+            normalized["expression"] = tool_result["expression"]
+
+    return normalized
+
+
 @app.get("/")
 def root():
     return {
@@ -50,7 +84,7 @@ def health():
 def run_agent(request: AgentRequest):
     result = agent.process(request.user_input)
 
-    return result
+    return normalize_result(result)
 
 
 @app.post("/groq-test")
@@ -79,6 +113,7 @@ def groq_test(request: GroqRequest):
         "response": response.choices[0].message.content
     }
 
+
 @app.post("/alexa-simulate")
 def alexa_simulate(request: AgentRequest):
     result = agent.process(request.user_input)
@@ -87,5 +122,5 @@ def alexa_simulate(request: AgentRequest):
         "status": "success",
         "experience": "Alexa+ simulated experience",
         "user_input": request.user_input,
-        "agent_result": result
+        "agent_result": normalize_result(result)
     }
