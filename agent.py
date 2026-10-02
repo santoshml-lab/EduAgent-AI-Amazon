@@ -23,12 +23,79 @@ class EduAgent:
     def process(self, user_input: str):
 
         # Step 1: Ask the AI to identify the user's intent
-        decision_response = self.client.chat.completions.create(
-            model="openai/gpt-oss-20b",
-            messages=[
+        decision = self.get_tool_decision(user_input)
+
+        if decision is None:
+            return {
+                "status": "error",
+                "agent": self.name,
+                "message": "AI could not determine the user's intent."
+            }
+
+        action = decision.get("action")
+
+        # Step 2: Execute the selected tool
+        if action == "study_plan":
+
+            tool_result = self.tool_manager.execute_tool(
+                "study_plan",
                 {
-                    "role": "system",
-                    "content": """
+                    "topic": decision.get("topic", "General"),
+                    "days": decision.get("days", 7)
+                }
+            )
+
+            return self.build_tool_response(
+                user_input,
+                action,
+                tool_result
+            )
+
+        if action == "learning_resources":
+
+            tool_result = self.tool_manager.execute_tool(
+                "learning_resources",
+                {
+                    "topic": decision.get("topic", "General")
+                }
+            )
+
+            return self.build_tool_response(
+                user_input,
+                action,
+                tool_result
+            )
+
+        if action == "calculator":
+
+            tool_result = self.tool_manager.execute_tool(
+                "calculator",
+                {
+                    "expression": decision.get("expression", "")
+                }
+            )
+
+            return self.build_tool_response(
+                user_input,
+                action,
+                tool_result
+            )
+
+        # Step 3: General AI response
+        if action == "general":
+            return self.general_response(user_input)
+
+        # Step 4: Handle unexpected actions
+        return {
+            "status": "error",
+            "agent": self.name,
+            "message": "AI selected an unknown action.",
+            "action": action
+        }
+
+    def get_tool_decision(self, user_input: str):
+
+        system_prompt = """
 You are the tool-selection brain of EduAgent AI.
 
 Choose exactly one action:
@@ -54,102 +121,71 @@ If the user asks for a calculation:
 For any other request:
 {"action":"general"}
 
+Examples:
+
+User: Create a 7 day study plan for Python
+Output:
+{"action":"study_plan","topic":"Python","days":7}
+
+User: I need a 5 day study plan for mathematics
+Output:
+{"action":"study_plan","topic":"mathematics","days":5}
+
+User: What are some good resources to learn Python?
+Output:
+{"action":"learning_resources","topic":"Python"}
+
+User: What is 25% of 800?
+Output:
+{"action":"calculator","expression":"25 / 100 * 800"}
+
+User: Explain machine learning
+Output:
+{"action":"general"}
+
 IMPORTANT:
 - Replace <actual topic> with the topic requested by the user.
-- Do NOT always use Python.
-- Do NOT explain your decision.
-- Do NOT return Markdown.
+- Do not always use Python.
+- Do not explain your decision.
+- Do not return Markdown.
 - Return JSON only.
-""",
-                },
-                {
-                    "role": "user",
-                    "content": user_input
-                }
-            ],
-            temperature=0,
-            max_tokens=100
-        )
+"""
 
-        message = decision_response.choices[0].message
-        ai_text = (message.content or "").strip()
+        for attempt in range(2):
 
-        # Step 2: Validate the AI decision
-        if not ai_text:
-            return {
-                "status": "error",
-                "agent": self.name,
-                "message": "AI returned an empty tool decision.",
-                "finish_reason": decision_response.choices[0].finish_reason
-            }
+            try:
+                decision_response = self.client.chat.completions.create(
+                    model="openai/gpt-oss-20b",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_prompt
+                        },
+                        {
+                            "role": "user",
+                            "content": user_input
+                        }
+                    ],
+                    temperature=0,
+                    max_tokens=150,
+                    response_format={"type": "json_object"}
+                )
 
-        try:
-            decision = json.loads(ai_text)
-        except json.JSONDecodeError:
-            return {
-                "status": "error",
-                "agent": self.name,
-                "message": "AI returned an invalid tool decision.",
-                "raw_response": ai_text
-            }
+                message = decision_response.choices[0].message
+                ai_text = (message.content or "").strip()
 
-        action = decision.get("action")
+                if not ai_text:
+                    continue
 
-        # Step 3: Execute the selected tool
-        if action == "study_plan":
-            tool_result = self.tool_manager.execute_tool(
-                "study_plan",
-                {
-                    "topic": decision.get("topic", "General"),
-                    "days": decision.get("days", 7)
-                }
-            )
+                decision = json.loads(ai_text)
 
-            return self.build_tool_response(
-                user_input,
-                action,
-                tool_result
-            )
+                if isinstance(decision, dict) and decision.get("action"):
+                    return decision
 
-        if action == "learning_resources":
-            tool_result = self.tool_manager.execute_tool(
-                "learning_resources",
-                {
-                    "topic": decision.get("topic", "General")
-                }
-            )
+            except Exception:
+                continue
 
-            return self.build_tool_response(
-                user_input,
-                action,
-                tool_result
-            )
-
-        if action == "calculator":
-            tool_result = self.tool_manager.execute_tool(
-                "calculator",
-                {
-                    "expression": decision.get("expression", "")
-                }
-            )
-
-            return self.build_tool_response(
-                user_input,
-                action,
-                tool_result
-            )
-
-        # Step 4: General AI response
-        if action == "general":
-            return self.general_response(user_input)
-
-        # Step 5: Handle unexpected actions
-        return {
-            "status": "error",
-            "agent": self.name,
-            "message": "AI selected an unknown action.",
-            "action": action
-        }
+        return None
 
     def build_tool_response(
         self,
@@ -231,4 +267,4 @@ Rules:
             "agent": self.name,
             "action": "general",
             "response": response.choices[0].message.content
-        }
+            }
