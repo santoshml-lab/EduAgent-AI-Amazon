@@ -67,3 +67,14 @@ def groq_test(request: GroqRequest):
         "status": "success",
         "response": response.choices[0].message.content
     }
+
+@app.post("/alexa-simulate")
+def alexa_simulate(request: AgentRequest):
+    result = agent.process(request.user_input)
+
+    return {
+        "status": "success",
+        "experience": "Alexa+ simulated experience",
+        "user_input": request.user_input,
+        "agent_result": result
+    }
