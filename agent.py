@@ -2,7 +2,7 @@ from groq import Groq
 import os
 import json
 
-from tools import study_plan, learning_resources, calculate
+from tools_registry import create_tool_manager
 
 
 class EduAgent:
@@ -17,6 +17,8 @@ class EduAgent:
         self.client = Groq(
             api_key=os.getenv("GROQ_API_KEY")
         )
+
+        self.tool_manager = create_tool_manager()
 
     def process(self, user_input: str):
 
@@ -70,7 +72,6 @@ IMPORTANT:
         )
 
         message = response.choices[0].message
-
         ai_text = (message.content or "").strip()
 
         if not ai_text:
@@ -93,22 +94,31 @@ IMPORTANT:
 
         action = decision.get("action")
 
-        # Execute selected tool
+        # Execute selected tool through ToolManager
         if action == "study_plan":
-            topic = decision.get("topic", "General")
-            days = decision.get("days", 7)
-
-            return study_plan(topic, days)
+            return self.tool_manager.execute_tool(
+                "study_plan",
+                {
+                    "topic": decision.get("topic", "General"),
+                    "days": decision.get("days", 7)
+                }
+            )
 
         if action == "learning_resources":
-            topic = decision.get("topic", "General")
-
-            return learning_resources(topic)
+            return self.tool_manager.execute_tool(
+                "learning_resources",
+                {
+                    "topic": decision.get("topic", "General")
+                }
+            )
 
         if action == "calculator":
-            expression = decision.get("expression", "")
-
-            return calculate(expression)
+            return self.tool_manager.execute_tool(
+                "calculator",
+                {
+                    "expression": decision.get("expression", "")
+                }
+            )
 
         # General AI response
         response = self.client.chat.completions.create(
