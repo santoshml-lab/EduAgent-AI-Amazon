@@ -22,203 +22,209 @@ class EduAgent:
 
     def process(self, user_input: str):
 
-    trace = [
-        {
-            "step": 1,
-            "stage": "request",
-            "message": "User request received."
-        }
-    ]
+        trace = [
+            {
+                "step": 1,
+                "stage": "request",
+                "message": "User request received."
+            }
+        ]
 
-    decision = self.get_tool_decision(user_input)
+        decision = self.get_tool_decision(user_input)
 
-    if decision is None:
+        if decision is None:
+
+            trace.append({
+                "step": 2,
+                "stage": "intent_detection",
+                "message": "Unable to determine user intent."
+            })
+
+            return {
+                "status": "error",
+                "agent": self.name,
+                "message": "AI could not determine the user's intent.",
+                "trace": trace
+            }
+
+        action = decision.get("action")
 
         trace.append({
             "step": 2,
             "stage": "intent_detection",
-            "message": "Unable to determine user intent."
+            "message": f"Intent detected: {action}."
+        })
+
+        if action == "study_plan":
+
+            trace.append({
+                "step": 3,
+                "stage": "tool_selection",
+                "message": "Study Plan Tool selected."
+            })
+
+            tool_result = self.tool_manager.execute_tool(
+                "study_plan",
+                {
+                    "topic": decision.get(
+                        "topic",
+                        "General"
+                    ),
+                    "days": decision.get(
+                        "days",
+                        7
+                    )
+                }
+            )
+
+            trace.append({
+                "step": 4,
+                "stage": "tool_execution",
+                "message": (
+                    "Study Plan Tool executed successfully."
+                )
+            })
+
+            result = self.build_tool_response(
+                user_input,
+                action,
+                tool_result
+            )
+
+            result["trace"] = trace + [
+                {
+                    "step": 5,
+                    "stage": "response",
+                    "message": "AI response generated."
+                }
+            ]
+
+            return result
+
+        if action == "learning_resources":
+
+            trace.append({
+                "step": 3,
+                "stage": "tool_selection",
+                "message": (
+                    "Learning Resources Tool selected."
+                )
+            })
+
+            tool_result = self.tool_manager.execute_tool(
+                "learning_resources",
+                {
+                    "topic": decision.get(
+                        "topic",
+                        "General"
+                    )
+                }
+            )
+
+            trace.append({
+                "step": 4,
+                "stage": "tool_execution",
+                "message": (
+                    "Learning Resources Tool "
+                    "executed successfully."
+                )
+            })
+
+            result = self.build_tool_response(
+                user_input,
+                action,
+                tool_result
+            )
+
+            result["trace"] = trace + [
+                {
+                    "step": 5,
+                    "stage": "response",
+                    "message": "AI response generated."
+                }
+            ]
+
+            return result
+
+        if action == "calculator":
+
+            trace.append({
+                "step": 3,
+                "stage": "tool_selection",
+                "message": "Calculator Tool selected."
+            })
+
+            tool_result = self.tool_manager.execute_tool(
+                "calculator",
+                {
+                    "expression": decision.get(
+                        "expression",
+                        ""
+                    )
+                }
+            )
+
+            trace.append({
+                "step": 4,
+                "stage": "tool_execution",
+                "message": (
+                    "Calculator Tool executed successfully."
+                )
+            })
+
+            result = self.build_tool_response(
+                user_input,
+                action,
+                tool_result
+            )
+
+            result["trace"] = trace + [
+                {
+                    "step": 5,
+                    "stage": "response",
+                    "message": "AI response generated."
+                }
+            ]
+
+            return result
+
+        if action == "general":
+
+            trace.append({
+                "step": 3,
+                "stage": "reasoning",
+                "message": (
+                    "General educational response selected."
+                )
+            })
+
+            result = self.general_response(
+                user_input
+            )
+
+            result["trace"] = trace + [
+                {
+                    "step": 4,
+                    "stage": "response",
+                    "message": "AI response generated."
+                }
+            ]
+
+            return result
+
+        trace.append({
+            "step": 3,
+            "stage": "error",
+            "message": "Unknown action selected."
         })
 
         return {
             "status": "error",
             "agent": self.name,
-            "message": "AI could not determine the user's intent.",
+            "message": "AI selected an unknown action.",
+            "action": action,
             "trace": trace
         }
-
-    action = decision.get("action")
-
-    trace.append({
-        "step": 2,
-        "stage": "intent_detection",
-        "message": f"Intent detected: {action}."
-    })
-
-    if action == "study_plan":
-
-        trace.append({
-            "step": 3,
-            "stage": "tool_selection",
-            "message": "Study Plan Tool selected."
-        })
-
-        tool_result = self.tool_manager.execute_tool(
-            "study_plan",
-            {
-                "topic": decision.get(
-                    "topic",
-                    "General"
-                ),
-                "days": decision.get(
-                    "days",
-                    7
-                )
-            }
-        )
-
-        trace.append({
-            "step": 4,
-            "stage": "tool_execution",
-            "message": "Study Plan Tool executed successfully."
-        })
-
-        result = self.build_tool_response(
-            user_input,
-            action,
-            tool_result
-        )
-
-        result["trace"] = trace + [
-            {
-                "step": 5,
-                "stage": "response",
-                "message": "AI response generated."
-            }
-        ]
-
-        return result
-
-    if action == "learning_resources":
-
-        trace.append({
-            "step": 3,
-            "stage": "tool_selection",
-            "message": "Learning Resources Tool selected."
-        })
-
-        tool_result = self.tool_manager.execute_tool(
-            "learning_resources",
-            {
-                "topic": decision.get(
-                    "topic",
-                    "General"
-                )
-            }
-        )
-
-        trace.append({
-            "step": 4,
-            "stage": "tool_execution",
-            "message": "Learning Resources Tool executed successfully."
-        })
-
-        result = self.build_tool_response(
-            user_input,
-            action,
-            tool_result
-        )
-
-        result["trace"] = trace + [
-            {
-                "step": 5,
-                "stage": "response",
-                "message": "AI response generated."
-            }
-        ]
-
-        return result
-
-    if action == "calculator":
-
-        trace.append({
-            "step": 3,
-            "stage": "tool_selection",
-            "message": "Calculator Tool selected."
-        })
-
-        tool_result = self.tool_manager.execute_tool(
-            "calculator",
-            {
-                "expression": decision.get(
-                    "expression",
-                    ""
-                )
-            }
-        )
-
-        trace.append({
-            "step": 4,
-            "stage": "tool_execution",
-            "message": "Calculator Tool executed successfully."
-        })
-
-        result = self.build_tool_response(
-            user_input,
-            action,
-            tool_result
-        )
-
-        result["trace"] = trace + [
-            {
-                "step": 5,
-                "stage": "response",
-                "message": "AI response generated."
-            }
-        ]
-
-        return result
-
-    if action == "general":
-
-        trace.append({
-            "step": 3,
-            "stage": "reasoning",
-            "message": "General educational response selected."
-        })
-
-        result = self.general_response(
-            user_input
-        )
-
-        result["trace"] = trace + [
-            {
-                "step": 4,
-                "stage": "response",
-                "message": "AI response generated."
-            }
-        ]
-
-        return result
-
-    trace.append({
-        "step": 3,
-        "stage": "error",
-        "message": "Unknown action selected."
-    })
-
-    return {
-        "status": "error",
-        "agent": self.name,
-        "message": "AI selected an unknown action.",
-        "action": action,
-        "trace": trace
-    }
-
-        
-        
-        
-          
 
     def get_tool_decision(self, user_input: str):
 
@@ -281,32 +287,49 @@ IMPORTANT:
         for attempt in range(2):
 
             try:
-                decision_response = self.client.chat.completions.create(
-                    model="openai/gpt-oss-20b",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": system_prompt
-                        },
-                        {
-                            "role": "user",
-                            "content": user_input
+
+                decision_response = (
+                    self.client.chat.completions.create(
+                        model="openai/gpt-oss-20b",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": system_prompt
+                            },
+                            {
+                                "role": "user",
+                                "content": user_input
+                            }
+                        ],
+                        temperature=0,
+                        max_tokens=150,
+                        response_format={
+                            "type": "json_object"
                         }
-                    ],
-                    temperature=0,
-                    max_tokens=150,
-                    response_format={"type": "json_object"}
+                    )
                 )
 
-                message = decision_response.choices[0].message
-                ai_text = (message.content or "").strip()
+                message = (
+                    decision_response
+                    .choices[0]
+                    .message
+                )
+
+                ai_text = (
+                    message.content or ""
+                ).strip()
 
                 if not ai_text:
                     continue
 
-                decision = json.loads(ai_text)
+                decision = json.loads(
+                    ai_text
+                )
 
-                if isinstance(decision, dict) and decision.get("action"):
+                if (
+                    isinstance(decision, dict)
+                    and decision.get("action")
+                ):
                     return decision
 
             except Exception:
@@ -320,16 +343,14 @@ IMPORTANT:
         action: str,
         tool_result
     ):
-        """
-        Convert the tool result into a natural agent response.
-        """
 
-        response = self.client.chat.completions.create(
-            model="openai/gpt-oss-20b",
-            messages=[
-                {
-                    "role": "system",
-                    "content": """
+        response = (
+            self.client.chat.completions.create(
+                model="openai/gpt-oss-20b",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """
 You are EduAgent AI.
 
 You have just executed a tool.
@@ -343,19 +364,22 @@ Rules:
 - Use only information available in the tool result.
 - Return valid JSON.
 """
+                    },
+                    {
+                        "role": "user",
+                        "content": json.dumps({
+                            "user_request": user_input,
+                            "selected_action": action,
+                            "tool_result": tool_result
+                        })
+                    }
+                ],
+                temperature=0.2,
+                max_tokens=300,
+                response_format={
+                    "type": "json_object"
                 },
-                {
-                    "role": "user",
-                    "content": json.dumps({
-                        "user_request": user_input,
-                        "selected_action": action,
-                        "tool_result": tool_result
-                    })
-                }
-            ],
-            temperature=0.2,
-            max_tokens=300,
-            response_format={"type": "json_object"},
+            )
         )
 
         return {
@@ -363,35 +387,51 @@ Rules:
             "agent": self.name,
             "action": action,
             "tool_result": tool_result,
-            "response": response.choices[0].message.content
+            "response": (
+                response
+                .choices[0]
+                .message
+                .content
+            )
         }
 
     def general_response(self, user_input: str):
 
-        response = self.client.chat.completions.create(
-            model="openai/gpt-oss-20b",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are EduAgent AI, an educational AI assistant. "
-                        "Give concise, clear and helpful answers. "
-                        "Return the answer as valid JSON."
-                    )
+        response = (
+            self.client.chat.completions.create(
+                model="openai/gpt-oss-20b",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are EduAgent AI, an "
+                            "educational AI assistant. "
+                            "Give concise, clear and "
+                            "helpful answers. "
+                            "Return the answer as valid JSON."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": user_input
+                    }
+                ],
+                temperature=0.2,
+                max_tokens=300,
+                response_format={
+                    "type": "json_object"
                 },
-                {
-                    "role": "user",
-                    "content": user_input
-                }
-            ],
-            temperature=0.2,
-            max_tokens=300,
-            response_format={"type": "json_object"},
+            )
         )
 
         return {
             "status": "success",
             "agent": self.name,
             "action": "general",
-            "response": response.choices[0].message.content
-            }
+            "response": (
+                response
+                .choices[0]
+                .message
+                .content
+            )
+        }
