@@ -952,15 +952,26 @@ Output:
                 "tool"
             )
 
+            reason = next_decision.get(
+                "reason",
+                "The intermediate result was evaluated."
+            )
+
+            if not isinstance(reason, str) or not reason.strip():
+                reason = "The intermediate result was evaluated."
+
+            reason = reason.strip()
+
             if next_tool == "none":
 
                 trace.append({
                     "step": 5 + round_number,
                     "stage": "adaptive_reasoning",
                     "message": (
-                        "Agent determined that no additional "
-                        "tool is required."
-                    )
+                        f"Adaptive reasoning: {reason}"
+                    ),
+                    "reason": reason,
+                    "selected_tool": "none"
                 })
 
                 break
@@ -978,7 +989,8 @@ Output:
                     "message": (
                         "Adaptive planner selected an "
                         "unsupported tool."
-                    )
+                    ),
+                    "reason": reason
                 })
 
                 break
@@ -991,7 +1003,8 @@ Output:
                     "message": (
                         f"Adaptive planner attempted to "
                         f"repeat {next_tool}; stopping workflow."
-                    )
+                    ),
+                    "reason": reason
                 })
 
                 break
@@ -1000,9 +1013,10 @@ Output:
                 "step": 5 + round_number,
                 "stage": "adaptive_reasoning",
                 "message": (
-                    f"Agent evaluated the intermediate "
-                    f"result and selected {next_tool} next."
-                )
+                    f"Adaptive reasoning: {reason}"
+                ),
+                "reason": reason,
+                "selected_tool": next_tool
             })
 
             current_steps = [
@@ -1086,7 +1100,7 @@ If another tool is required:
   "arguments": {
     "topic": "mathematics"
   },
-  "reason": "The study plan was created and learning resources are needed to support it."
+  "reason": "The study plan was created, so learning resources are needed to support the topics and activities in the plan."
 }
 
 If no additional tool is required:
@@ -1094,7 +1108,7 @@ If no additional tool is required:
 {
   "tool": "none",
   "arguments": {},
-  "reason": "The available tool results are sufficient."
+  "reason": "The available tool results are sufficient to complete the user's request."
 }
 
 Rules:
@@ -1110,6 +1124,9 @@ Rules:
 - If the user provides a daily study time or total available study hours and a calculation is needed, calculator may be selected.
 - If current information is explicitly required, web_search may be selected.
 - Otherwise return tool = none.
+- The reason must explain the relationship between the intermediate result and the next decision.
+- Keep the reason concise and specific.
+- Do not mention internal APIs, model names, or implementation details.
 """
 
         try:
@@ -1156,6 +1173,20 @@ Rules:
             tool_name = decision.get(
                 "tool"
             )
+
+            reason = decision.get(
+                "reason"
+            )
+
+            if not isinstance(
+                reason,
+                str
+            ) or not reason.strip():
+
+                decision["reason"] = (
+                    "The intermediate result was evaluated "
+                    "to determine the next action."
+                )
 
             if tool_name == "none":
                 return decision
@@ -1521,5 +1552,5 @@ Use this structure:
                     ),
                     "error": str(error)
                 })
-    }
+        }
 
