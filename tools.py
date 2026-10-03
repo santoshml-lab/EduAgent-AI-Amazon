@@ -1,3 +1,9 @@
+import os
+import json
+import urllib.request
+import urllib.error
+
+
 def study_plan(topic: str, days: int):
     """
     Create a structured day-by-day study plan.
@@ -88,4 +94,67 @@ def calculate(expression: str):
             "tool": "calculator",
             "expression": expression,
             "error": "Invalid mathematical expression."
+        }
+
+
+def web_search(query: str):
+    """
+    Search the web using the Tavily Search API.
+    """
+
+    api_key = os.getenv("TAVILY_API_KEY")
+
+    if not api_key:
+        return {
+            "tool": "web_search",
+            "query": query,
+            "error": "TAVILY_API_KEY is not configured."
+        }
+
+    url = "https://api.tavily.com/search"
+
+    payload = {
+        "api_key": api_key,
+        "query": query,
+        "search_depth": "basic",
+        "include_answer": True,
+        "max_results": 5
+    }
+
+    try:
+        data = json.dumps(payload).encode("utf-8")
+
+        request = urllib.request.Request(
+            url,
+            data=data,
+            headers={
+                "Content-Type": "application/json"
+            },
+            method="POST"
+        )
+
+        with urllib.request.urlopen(request, timeout=20) as response:
+            result = json.loads(
+                response.read().decode("utf-8")
+            )
+
+        return {
+            "tool": "web_search",
+            "query": query,
+            "answer": result.get("answer"),
+            "results": result.get("results", [])
+        }
+
+    except urllib.error.HTTPError as error:
+        return {
+            "tool": "web_search",
+            "query": query,
+            "error": f"Tavily API error: {error.code}"
+        }
+
+    except Exception as error:
+        return {
+            "tool": "web_search",
+            "query": query,
+            "error": f"Web search failed: {str(error)}"
         }
