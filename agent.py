@@ -188,6 +188,48 @@ class EduAgent:
 
             return result
 
+        if action == "web_search":
+
+            trace.append({
+                "step": 3,
+                "stage": "tool_selection",
+                "message": "Web Search Tool selected."
+            })
+
+            tool_result = self.tool_manager.execute_tool(
+                "web_search",
+                {
+                    "query": decision.get(
+                        "query",
+                        user_input
+                    )
+                }
+            )
+
+            trace.append({
+                "step": 4,
+                "stage": "tool_execution",
+                "message": (
+                    "Web Search Tool executed successfully."
+                )
+            })
+
+            result = self.build_tool_response(
+                user_input,
+                action,
+                tool_result
+            )
+
+            result["trace"] = trace + [
+                {
+                    "step": 5,
+                    "stage": "response",
+                    "message": "AI response generated."
+                }
+            ]
+
+            return result
+
         if action == "general":
 
             trace.append({
@@ -236,6 +278,7 @@ Choose exactly one action:
 - study_plan
 - learning_resources
 - calculator
+- web_search
 - general
 
 Return ONLY one valid JSON object.
@@ -250,6 +293,11 @@ If the user wants learning resources:
 
 If the user asks for a calculation:
 {"action":"calculator","expression":"<mathematical expression>"}
+
+If the user asks to search the web, find current information,
+look up recent news, search online, research a topic using the web,
+or asks for information that requires current web data:
+{"action":"web_search","query":"<search query>"}
 
 For any other request:
 {"action":"general"}
@@ -272,12 +320,25 @@ User: What is 25% of 800?
 Output:
 {"action":"calculator","expression":"25 / 100 * 800"}
 
+User: Search the latest AI news
+Output:
+{"action":"web_search","query":"latest AI news"}
+
+User: Search the web for recent developments in artificial intelligence
+Output:
+{"action":"web_search","query":"recent developments in artificial intelligence"}
+
+User: What are the latest Python releases?
+Output:
+{"action":"web_search","query":"latest Python releases"}
+
 User: Explain machine learning
 Output:
 {"action":"general"}
 
 IMPORTANT:
 - Replace <actual topic> with the topic requested by the user.
+- For web searches, create a concise search query from the user's request.
 - Do not always use Python.
 - Do not explain your decision.
 - Do not return Markdown.
@@ -375,7 +436,7 @@ Rules:
                     }
                 ],
                 temperature=0.2,
-                max_tokens=300,
+                max_tokens=500,
                 response_format={
                     "type": "json_object"
                 },
@@ -434,4 +495,4 @@ Rules:
                 .message
                 .content
             )
-        }
+            }
