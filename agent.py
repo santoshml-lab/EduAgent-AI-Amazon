@@ -56,6 +56,7 @@ class EduAgent:
             "message": f"Intent detected: {action}."
         })
 
+        # Study Plan
         if action == "study_plan":
 
             trace.append({
@@ -100,6 +101,7 @@ class EduAgent:
 
             return result
 
+        # Learning Resources
         if action == "learning_resources":
 
             trace.append({
@@ -143,6 +145,7 @@ class EduAgent:
 
             return result
 
+        # Calculator
         if action == "calculator":
 
             trace.append({
@@ -183,6 +186,7 @@ class EduAgent:
 
             return result
 
+        # Web Search
         if action == "web_search":
 
             trace.append({
@@ -201,7 +205,10 @@ class EduAgent:
                 }
             )
 
-            if isinstance(tool_result, dict) and tool_result.get("error"):
+            if (
+                isinstance(tool_result, dict)
+                and tool_result.get("error")
+            ):
 
                 trace.append({
                     "step": 4,
@@ -227,12 +234,13 @@ class EduAgent:
                 {
                     "step": 5,
                     "stage": "response",
-                    "message": "AI response generated."
+                    "message": "Web search response completed."
                 }
             ]
 
             return result
 
+        # General AI
         if action == "general":
 
             trace.append({
@@ -241,299 +249,5 @@ class EduAgent:
                 "message": "General educational response selected."
             })
 
-            result = self.general_response(
-                user_input
-            )
+            result = self
 
-            result["trace"] = trace + [
-                {
-                    "step": 4,
-                    "stage": "response",
-                    "message": "AI response generated."
-                }
-            ]
-
-            return result
-
-        trace.append({
-            "step": 3,
-            "stage": "error",
-            "message": "Unknown action selected."
-        })
-
-        return {
-            "status": "error",
-            "agent": self.name,
-            "message": "AI selected an unknown action.",
-            "action": action,
-            "trace": trace
-        }
-
-    def get_tool_decision(self, user_input: str):
-
-        system_prompt = """
-You are the tool-selection brain of EduAgent AI.
-
-Choose exactly one action:
-
-- study_plan
-- learning_resources
-- calculator
-- web_search
-- general
-
-Return ONLY one valid JSON object.
-
-Rules:
-
-If the user wants a study plan:
-{"action":"study_plan","topic":"<actual topic>","days":7}
-
-If the user wants learning resources:
-{"action":"learning_resources","topic":"<actual topic>"}
-
-If the user asks for a calculation:
-{"action":"calculator","expression":"<mathematical expression>"}
-
-If the user asks to search the web, find current information,
-look up recent news, search online, research a topic using the web,
-or asks for information that requires current web data:
-{"action":"web_search","query":"<search query>"}
-
-For any other request:
-{"action":"general"}
-
-Examples:
-
-User: Create a 7 day study plan for Python
-Output:
-{"action":"study_plan","topic":"Python","days":7}
-
-User: I need a 5 day study plan for mathematics
-Output:
-{"action":"study_plan","topic":"mathematics","days":5}
-
-User: What are some good resources to learn Python?
-Output:
-{"action":"learning_resources","topic":"Python"}
-
-User: What is 25% of 800?
-Output:
-{"action":"calculator","expression":"25 / 100 * 800"}
-
-User: Search the latest AI news
-Output:
-{"action":"web_search","query":"latest AI news"}
-
-User: Search the web for recent developments in artificial intelligence
-Output:
-{"action":"web_search","query":"recent developments in artificial intelligence"}
-
-User: What are the latest Python releases?
-Output:
-{"action":"web_search","query":"latest Python releases"}
-
-User: Explain machine learning
-Output:
-{"action":"general"}
-
-IMPORTANT:
-- Replace <actual topic> with the topic requested by the user.
-- For web searches, create a concise search query from the user's request.
-- Do not always use Python.
-- Do not explain your decision.
-- Do not return Markdown.
-- Return JSON only.
-"""
-
-        for attempt in range(2):
-
-            try:
-
-                decision_response = (
-                    self.client.chat.completions.create(
-                        model="openai/gpt-oss-20b",
-                        messages=[
-                            {
-                                "role": "system",
-                                "content": system_prompt
-                            },
-                            {
-                                "role": "user",
-                                "content": user_input
-                            }
-                        ],
-                        temperature=0,
-                        max_tokens=150,
-                        response_format={
-                            "type": "json_object"
-                        }
-                    )
-                )
-
-                message = (
-                    decision_response
-                    .choices[0]
-                    .message
-                )
-
-                ai_text = (
-                    message.content or ""
-                ).strip()
-
-                if not ai_text:
-                    continue
-
-                decision = json.loads(
-                    ai_text
-                )
-
-                if (
-                    isinstance(decision, dict)
-                    and decision.get("action")
-                ):
-                    return decision
-
-            except Exception:
-                continue
-
-        return None
-
-    def build_tool_response(
-        self,
-        user_input: str,
-        action: str,
-        tool_result
-    ):
-
-        if action == "web_search":
-
-            system_prompt = """
-You are EduAgent AI, an educational research assistant.
-
-You have just received results from a web search tool.
-
-Your job is to summarize ONLY the information explicitly present
-in the retrieved search results.
-
-STRICT RULES:
-
-- Do not invent facts.
-- Do not add outside knowledge.
-- Do not change numbers.
-- Do not change dates.
-- Do not change names.
-- Do not change organizations.
-- Do not change monetary amounts.
-- Preserve factual details exactly as provided.
-- Do not infer missing information.
-- If different sources provide different numbers,
-  do not choose one.
-- Mention the disagreement or uncertainty instead.
-- If the retrieved results do not contain enough information,
-  clearly say so.
-- Keep the answer concise and useful.
-- Return valid JSON only.
-
-Use this structure:
-
-{
-    "summary": "Concise factual summary based only on retrieved results."
-}
-"""
-
-        else:
-
-            system_prompt = """
-You are EduAgent AI.
-
-You have just executed a tool.
-
-Use the tool result to answer the user's request naturally.
-
-Rules:
-- Be concise and helpful.
-- Do not mention internal implementation details.
-- Do not invent information.
-- Use only information available in the tool result.
-- Return valid JSON.
-"""
-
-        response = (
-            self.client.chat.completions.create(
-                model="openai/gpt-oss-20b",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": json.dumps({
-                            "user_request": user_input,
-                            "selected_action": action,
-                            "tool_result": tool_result
-                        })
-                    }
-                ],
-                temperature=0,
-                max_tokens=500,
-                response_format={
-                    "type": "json_object"
-                },
-            )
-        )
-
-        return {
-            "status": "success",
-            "agent": self.name,
-            "action": action,
-            "tool_result": tool_result,
-            "response": (
-                response
-                .choices[0]
-                .message
-                .content
-            )
-        }
-
-    def general_response(self, user_input: str):
-
-        response = (
-            self.client.chat.completions.create(
-                model="openai/gpt-oss-20b",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are EduAgent AI, an "
-                            "educational AI assistant. "
-                            "Give concise, clear and "
-                            "helpful answers. "
-                            "Return the answer as valid JSON."
-                        )
-                    },
-                    {
-                        "role": "user",
-                        "content": user_input
-                    }
-                ],
-                temperature=0.2,
-                max_tokens=300,
-                response_format={
-                    "type": "json_object"
-                },
-            )
-        )
-
-        return {
-            "status": "success",
-            "agent": self.name,
-            "action": "general",
-            "response": (
-                response
-                .choices[0]
-                .message
-                .content
-            )
-        }
