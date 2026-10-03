@@ -137,6 +137,7 @@ class EduAgent:
             )
 
         if action == "general":
+
             trace.append({
                 "step": 4,
                 "stage": "reasoning",
@@ -205,6 +206,7 @@ For MULTIPLE tools use:
 
 {
   "mode": "multi_tool",
+  "adaptive": false,
   "steps": [
     {
       "tool": "study_plan",
@@ -222,6 +224,22 @@ For MULTIPLE tools use:
   ]
 }
 
+For an ADAPTIVE request use:
+
+{
+  "mode": "multi_tool",
+  "adaptive": true,
+  "steps": [
+    {
+      "tool": "study_plan",
+      "arguments": {
+        "topic": "mathematics",
+        "days": 7
+      }
+    }
+  ]
+}
+
 For a normal response use:
 
 {
@@ -234,9 +252,13 @@ Rules:
 - Use study_plan when the user asks for a study schedule or study plan.
 - Use learning_resources when the user asks for resources, materials, practice resources, or learning guidance.
 - Use calculator for mathematical calculations.
-- Use web_search when the user explicitly asks to search online, asks for latest/current information, recent news, or information that requires current web data.
-- Use multiple tools when the request clearly requires more than one independent action.
-- Use no more than 4 tools.
+- Use web_search when the user explicitly asks to search online, asks for latest/current information, recent news, or information requiring current web data.
+- Use multiple tools when the request clearly requires more than one action.
+- Use adaptive mode when later actions should depend on the results of earlier actions.
+- Adaptive mode should normally start with the most important first tool.
+- Never invent information that the user did not provide.
+- Do not assume a study duration or available study time unless the user gives it.
+- Use no more than 4 total tool executions.
 - Never invent a tool name.
 - Never include tools outside the available tool list.
 - Preserve the actual topic from the user.
@@ -246,7 +268,17 @@ Rules:
 - For web search, create a concise search query.
 - If the request can be answered normally without a tool, use general.
 
-Examples:
+Use adaptive mode for requests such as:
+
+"I have a mathematics exam in 7 days. Create a study plan, then decide what resources I need based on the plan."
+
+"I need to prepare for Python in 10 days. Make a plan and then adapt the resources based on the plan."
+
+"I have 14 hours available before my mathematics exam. Create a plan and calculate how much time I should spend per day."
+
+Use normal multi-tool mode when the requested actions are already clearly known.
+
+Example:
 
 User:
 Create a 7 day study plan for Python
@@ -295,6 +327,7 @@ I have a mathematics exam in 7 days. Create a study plan and give me learning re
 Output:
 {
   "mode": "multi_tool",
+  "adaptive": false,
   "steps": [
     {
       "tool": "study_plan",
@@ -313,11 +346,30 @@ Output:
 }
 
 User:
+I have a mathematics exam in 7 days. Create a study plan, then decide what resources I need based on the plan.
+
+Output:
+{
+  "mode": "multi_tool",
+  "adaptive": true,
+  "steps": [
+    {
+      "tool": "study_plan",
+      "arguments": {
+        "topic": "mathematics",
+        "days": 7
+      }
+    }
+  ]
+}
+
+User:
 Calculate 25 * 40 and search the latest AI news.
 
 Output:
 {
   "mode": "multi_tool",
+  "adaptive": false,
   "steps": [
     {
       "tool": "calculator",
@@ -395,6 +447,7 @@ Output:
         cleaned = text.strip()
 
         if cleaned.startswith("```"):
+
             cleaned = re.sub(
                 r"^```(?:json)?\s*",
                 "",
@@ -409,7 +462,10 @@ Output:
             )
 
         try:
-            return json.loads(cleaned)
+
+            return json.loads(
+                cleaned
+            )
 
         except json.JSONDecodeError:
 
@@ -423,13 +479,19 @@ Output:
                 return None
 
             try:
+
                 return json.loads(
                     match.group(0)
                 )
+
             except json.JSONDecodeError:
+
                 return None
 
-    def validate_decision(self, decision):
+    def validate_decision(
+        self,
+        decision
+    ):
 
         if not isinstance(
             decision,
@@ -442,6 +504,7 @@ Output:
         )
 
         if mode == "general":
+
             return (
                 decision.get("action")
                 == "general"
@@ -474,6 +537,17 @@ Output:
                 return False
 
             if len(steps) > self.MAX_TOOL_STEPS:
+                return False
+
+            adaptive = decision.get(
+                "adaptive",
+                False
+            )
+
+            if not isinstance(
+                adaptive,
+                bool
+            ):
                 return False
 
             for step in steps:
@@ -578,13 +652,50 @@ Output:
             []
         )
 
+        adaptive = decision.get(
+            "adaptive",
+            False
+        )
+
         trace.append({
             "step": 3,
             "stage": "planning",
             "message": (
-                f"Planner created {len(steps)} tool steps."
+                f"Planner created {len(steps)} initial "
+                f"tool step(s)."
             )
         })
+
+        if adaptive:
+
+            trace.append({
+                "step": 3,
+                "stage": "adaptive_planning",
+                "message": (
+                    "Adaptive planning enabled. "
+                    "The agent will evaluate intermediate "
+                    "results before selecting the next action."
+                )
+            })
+
+            return self.process_adaptive_workflow(
+                user_input,
+                steps,
+                trace
+            )
+
+        return self.process_standard_multi_tool(
+            user_input,
+            steps,
+            trace
+        )
+
+    def process_standard_multi_tool(
+        self,
+        user_input,
+        steps,
+        trace
+    ):
 
         tool_results = []
 
@@ -671,7 +782,9 @@ Output:
                 "status": "error",
                 "agent": self.name,
                 "action": "multi_tool",
-                "message": "No tools were successfully executed.",
+                "message": (
+                    "No tools were successfully executed."
+                ),
                 "trace": trace
             }
 
@@ -701,6 +814,445 @@ Output:
         final_response["trace"] = trace
 
         return final_response
+
+    def process_adaptive_workflow(
+        self,
+        user_input,
+        initial_steps,
+        trace
+    ):
+
+        tool_results = []
+        executed_tools = []
+
+        current_steps = initial_steps
+
+        for round_number in range(
+            self.MAX_TOOL_STEPS
+        ):
+
+            if not current_steps:
+                break
+
+            step = current_steps[0]
+
+            tool_name = step.get(
+                "tool"
+            )
+
+            arguments = step.get(
+                "arguments",
+                {}
+            )
+
+            if tool_name not in self.ALLOWED_TOOLS:
+
+                trace.append({
+                    "step": 4 + round_number,
+                    "stage": "validation",
+                    "message": (
+                        f"Blocked unsupported tool: "
+                        f"{tool_name}."
+                    )
+                })
+
+                break
+
+            if tool_name in executed_tools:
+
+                trace.append({
+                    "step": 4 + round_number,
+                    "stage": "validation",
+                    "message": (
+                        f"Skipped repeated tool: "
+                        f"{tool_name}."
+                    )
+                })
+
+                break
+
+            trace.append({
+                "step": 4 + round_number,
+                "stage": "tool_selection",
+                "message": (
+                    f"Adaptive step {round_number + 1}: "
+                    f"{tool_name} selected."
+                )
+            })
+
+            try:
+
+                result = (
+                    self.tool_manager.execute_tool(
+                        tool_name,
+                        arguments
+                    )
+                )
+
+                tool_results.append({
+                    "step": round_number + 1,
+                    "tool": tool_name,
+                    "arguments": arguments,
+                    "result": result
+                })
+
+                executed_tools.append(
+                    tool_name
+                )
+
+                trace.append({
+                    "step": 4 + round_number,
+                    "stage": "tool_execution",
+                    "message": (
+                        f"{tool_name} executed successfully."
+                    )
+                })
+
+            except Exception as error:
+
+                tool_results.append({
+                    "step": round_number + 1,
+                    "tool": tool_name,
+                    "arguments": arguments,
+                    "result": {
+                        "error": str(error)
+                    }
+                })
+
+                trace.append({
+                    "step": 4 + round_number,
+                    "stage": "tool_execution",
+                    "message": (
+                        f"{tool_name} execution failed."
+                    )
+                })
+
+                break
+
+            next_decision = self.get_adaptive_decision(
+                user_input,
+                tool_results,
+                executed_tools
+            )
+
+            if next_decision is None:
+
+                trace.append({
+                    "step": 5 + round_number,
+                    "stage": "adaptive_reasoning",
+                    "message": (
+                        "No additional tool was selected "
+                        "after evaluating the intermediate result."
+                    )
+                })
+
+                break
+
+            next_tool = next_decision.get(
+                "tool"
+            )
+
+            if next_tool == "none":
+
+                trace.append({
+                    "step": 5 + round_number,
+                    "stage": "adaptive_reasoning",
+                    "message": (
+                        "Agent determined that no additional "
+                        "tool is required."
+                    )
+                })
+
+                break
+
+            next_arguments = next_decision.get(
+                "arguments",
+                {}
+            )
+
+            if next_tool not in self.ALLOWED_TOOLS:
+
+                trace.append({
+                    "step": 5 + round_number,
+                    "stage": "validation",
+                    "message": (
+                        "Adaptive planner selected an "
+                        "unsupported tool."
+                    )
+                })
+
+                break
+
+            if next_tool in executed_tools:
+
+                trace.append({
+                    "step": 5 + round_number,
+                    "stage": "validation",
+                    "message": (
+                        f"Adaptive planner attempted to "
+                        f"repeat {next_tool}; stopping workflow."
+                    )
+                })
+
+                break
+
+            trace.append({
+                "step": 5 + round_number,
+                "stage": "adaptive_reasoning",
+                "message": (
+                    f"Agent evaluated the intermediate "
+                    f"result and selected {next_tool} next."
+                )
+            })
+
+            current_steps = [
+                {
+                    "tool": next_tool,
+                    "arguments": next_arguments
+                }
+            ]
+
+        if not tool_results:
+
+            return {
+                "status": "error",
+                "agent": self.name,
+                "action": "multi_tool",
+                "message": (
+                    "Adaptive workflow did not execute "
+                    "any tools."
+                ),
+                "trace": trace
+            }
+
+        trace.append({
+            "step": 10,
+            "stage": "aggregation",
+            "message": (
+                f"Adaptive workflow completed with "
+                f"{len(tool_results)} tool execution(s)."
+            )
+        })
+
+        final_response = (
+            self.build_adaptive_response(
+                user_input,
+                tool_results
+            )
+        )
+
+        trace.append({
+            "step": 11,
+            "stage": "response",
+            "message": (
+                "Final adaptive response generated."
+            )
+        })
+
+        final_response["trace"] = trace
+
+        return final_response
+
+    def get_adaptive_decision(
+        self,
+        user_input,
+        tool_results,
+        executed_tools
+    ):
+
+        system_prompt = """
+You are the adaptive reasoning brain of EduAgent AI.
+
+You are given:
+- the original user request,
+- tools that have already been executed,
+- their intermediate results.
+
+Your job is to decide whether another tool is genuinely required.
+
+Available tools:
+
+- study_plan
+- learning_resources
+- calculator
+- web_search
+
+Return ONLY valid JSON.
+
+If another tool is required:
+
+{
+  "tool": "learning_resources",
+  "arguments": {
+    "topic": "mathematics"
+  },
+  "reason": "The study plan was created and learning resources are needed to support it."
+}
+
+If no additional tool is required:
+
+{
+  "tool": "none",
+  "arguments": {},
+  "reason": "The available tool results are sufficient."
+}
+
+Rules:
+
+- Use only the available tools.
+- Do not repeat a tool that has already been executed.
+- Do not invent missing user information.
+- Use information from the intermediate results.
+- Select another tool only when it helps complete the original request.
+- Do not call a tool just to make the workflow longer.
+- Maximum total tool executions are limited by the application.
+- If the original request requires resources after creating a study plan, learning_resources may be selected.
+- If the user provides a daily study time or total available study hours and a calculation is needed, calculator may be selected.
+- If current information is explicitly required, web_search may be selected.
+- Otherwise return tool = none.
+"""
+
+        try:
+
+            response = (
+                self.client.chat.completions.create(
+                    model="openai/gpt-oss-20b",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_prompt
+                        },
+                        {
+                            "role": "user",
+                            "content": json.dumps({
+                                "user_request": user_input,
+                                "executed_tools": executed_tools,
+                                "intermediate_results": tool_results
+                            })
+                        }
+                    ],
+                    temperature=0,
+                    max_tokens=300
+                )
+            )
+
+            content = (
+                response
+                .choices[0]
+                .message
+                .content or ""
+            ).strip()
+
+            decision = self.parse_json_response(
+                content
+            )
+
+            if not isinstance(
+                decision,
+                dict
+            ):
+                return None
+
+            tool_name = decision.get(
+                "tool"
+            )
+
+            if tool_name == "none":
+                return decision
+
+            if tool_name not in self.ALLOWED_TOOLS:
+                return None
+
+            if tool_name in executed_tools:
+                return None
+
+            arguments = decision.get(
+                "arguments",
+                {}
+            )
+
+            if not isinstance(
+                arguments,
+                dict
+            ):
+                return None
+
+            return decision
+
+        except Exception:
+
+            return None
+
+    def build_adaptive_response(
+        self,
+        user_input,
+        tool_results
+    ):
+
+        try:
+
+            response = (
+                self.client.chat.completions.create(
+                    model="openai/gpt-oss-20b",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are EduAgent AI. "
+                                "Create one concise final response "
+                                "from the results of an adaptive "
+                                "multi-tool educational workflow. "
+                                "Explain what the agent completed. "
+                                "Use only supplied results. "
+                                "Do not invent information. "
+                                "Do not mention internal APIs or "
+                                "implementation details."
+                            )
+                        },
+                        {
+                            "role": "user",
+                            "content": json.dumps({
+                                "user_request": user_input,
+                                "workflow_results": tool_results
+                            })
+                        }
+                    ],
+                    temperature=0.1,
+                    max_tokens=600
+                )
+            )
+
+            final_text = (
+                response
+                .choices[0]
+                .message
+                .content or ""
+            ).strip()
+
+            return {
+                "status": "success",
+                "agent": self.name,
+                "action": "multi_tool",
+                "workflow": "adaptive",
+                "tool_results": tool_results,
+                "response": final_text
+            }
+
+        except Exception as error:
+
+            return {
+                "status": "success",
+                "agent": self.name,
+                "action": "multi_tool",
+                "workflow": "adaptive",
+                "tool_results": tool_results,
+                "response": (
+                    "The adaptive workflow completed "
+                    "successfully, but the final response "
+                    "could not be generated."
+                ),
+                "error": str(error)
+            }
 
     def build_multi_tool_response(
         self,
@@ -969,5 +1521,5 @@ Use this structure:
                     ),
                     "error": str(error)
                 })
-                    }
+    }
 
