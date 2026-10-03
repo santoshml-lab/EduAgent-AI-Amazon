@@ -399,19 +399,43 @@ IMPORTANT:
         return None
 
     def build_tool_response(
-        self,
-        user_input: str,
-        action: str,
-        tool_result
-    ):
+    self,
+    user_input: str,
+    action: str,
+    tool_result
+):
 
-        response = (
-            self.client.chat.completions.create(
-                model="openai/gpt-oss-20b",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": """
+    if action == "web_search":
+
+        system_prompt = """
+You are EduAgent AI, an educational research assistant.
+
+You have just received results from a web search tool.
+
+Your job is to summarize ONLY the information explicitly present
+in the retrieved search results.
+
+STRICT RULES:
+- Do not invent facts.
+- Do not add outside knowledge.
+- Do not change numbers, dates, names, organizations, or amounts.
+- Preserve factual details exactly as provided.
+- If different sources provide different numbers, do not choose one.
+- Mention the uncertainty or disagreement instead.
+- If the retrieved results do not contain enough information,
+  clearly say so.
+- Keep the answer concise and useful.
+- Return valid JSON only.
+
+Use this structure:
+{
+  "summary": "Concise factual summary based only on retrieved results."
+}
+"""
+
+    else:
+
+        system_prompt = """
 You are EduAgent AI.
 
 You have just executed a tool.
@@ -425,36 +449,48 @@ Rules:
 - Use only information available in the tool result.
 - Return valid JSON.
 """
-                    },
-                    {
-                        "role": "user",
-                        "content": json.dumps({
-                            "user_request": user_input,
-                            "selected_action": action,
-                            "tool_result": tool_result
-                        })
-                    }
-                ],
-                temperature=0.2,
-                max_tokens=500,
-                response_format={
-                    "type": "json_object"
-                },
-            )
-        )
 
-        return {
-            "status": "success",
-            "agent": self.name,
-            "action": action,
-            "tool_result": tool_result,
-            "response": (
-                response
-                .choices[0]
-                .message
-                .content
-            )
-        }
+    response = (
+        self.client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": json.dumps({
+                        "user_request": user_input,
+                        "selected_action": action,
+                        "tool_result": tool_result
+                    })
+                }
+            ],
+            temperature=0,
+            max_tokens=500,
+            response_format={
+                "type": "json_object"
+            },
+        )
+    )
+
+    return {
+        "status": "success",
+        "agent": self.name,
+        "action": action,
+        "tool_result": tool_result,
+        "response": (
+            response
+            .choices[0]
+            .message
+            .content
+        )
+    }
+        
+        
+        
+     
 
     def general_response(self, user_input: str):
 
