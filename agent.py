@@ -9,6 +9,7 @@ class EduAgent:
 
     def __init__(self):
         self.name = "EduAgent AI"
+
         self.description = (
             "An agentic AI learning assistant for study planning, "
             "educational support, research, and productivity."
@@ -80,9 +81,7 @@ class EduAgent:
             trace.append({
                 "step": 4,
                 "stage": "tool_execution",
-                "message": (
-                    "Study Plan Tool executed successfully."
-                )
+                "message": "Study Plan Tool executed successfully."
             })
 
             result = self.build_tool_response(
@@ -106,9 +105,7 @@ class EduAgent:
             trace.append({
                 "step": 3,
                 "stage": "tool_selection",
-                "message": (
-                    "Learning Resources Tool selected."
-                )
+                "message": "Learning Resources Tool selected."
             })
 
             tool_result = self.tool_manager.execute_tool(
@@ -167,9 +164,7 @@ class EduAgent:
             trace.append({
                 "step": 4,
                 "stage": "tool_execution",
-                "message": (
-                    "Calculator Tool executed successfully."
-                )
+                "message": "Calculator Tool executed successfully."
             })
 
             result = self.build_tool_response(
@@ -206,13 +201,21 @@ class EduAgent:
                 }
             )
 
-            trace.append({
-                "step": 4,
-                "stage": "tool_execution",
-                "message": (
-                    "Web Search Tool executed successfully."
-                )
-            })
+            if isinstance(tool_result, dict) and tool_result.get("error"):
+
+                trace.append({
+                    "step": 4,
+                    "stage": "tool_execution",
+                    "message": "Web Search Tool returned an error."
+                })
+
+            else:
+
+                trace.append({
+                    "step": 4,
+                    "stage": "tool_execution",
+                    "message": "Web Search Tool executed successfully."
+                })
 
             result = self.build_tool_response(
                 user_input,
@@ -235,9 +238,7 @@ class EduAgent:
             trace.append({
                 "step": 3,
                 "stage": "reasoning",
-                "message": (
-                    "General educational response selected."
-                )
+                "message": "General educational response selected."
             })
 
             result = self.general_response(
@@ -399,15 +400,15 @@ IMPORTANT:
         return None
 
     def build_tool_response(
-    self,
-    user_input: str,
-    action: str,
-    tool_result
-):
+        self,
+        user_input: str,
+        action: str,
+        tool_result
+    ):
 
-    if action == "web_search":
+        if action == "web_search":
 
-        system_prompt = """
+            system_prompt = """
 You are EduAgent AI, an educational research assistant.
 
 You have just received results from a web search tool.
@@ -416,26 +417,34 @@ Your job is to summarize ONLY the information explicitly present
 in the retrieved search results.
 
 STRICT RULES:
+
 - Do not invent facts.
 - Do not add outside knowledge.
-- Do not change numbers, dates, names, organizations, or amounts.
+- Do not change numbers.
+- Do not change dates.
+- Do not change names.
+- Do not change organizations.
+- Do not change monetary amounts.
 - Preserve factual details exactly as provided.
-- If different sources provide different numbers, do not choose one.
-- Mention the uncertainty or disagreement instead.
+- Do not infer missing information.
+- If different sources provide different numbers,
+  do not choose one.
+- Mention the disagreement or uncertainty instead.
 - If the retrieved results do not contain enough information,
   clearly say so.
 - Keep the answer concise and useful.
 - Return valid JSON only.
 
 Use this structure:
+
 {
-  "summary": "Concise factual summary based only on retrieved results."
+    "summary": "Concise factual summary based only on retrieved results."
 }
 """
 
-    else:
+        else:
 
-        system_prompt = """
+            system_prompt = """
 You are EduAgent AI.
 
 You have just executed a tool.
@@ -450,47 +459,43 @@ Rules:
 - Return valid JSON.
 """
 
-    response = (
-        self.client.chat.completions.create(
-            model="openai/gpt-oss-20b",
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt
+        response = (
+            self.client.chat.completions.create(
+                model="openai/gpt-oss-20b",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_prompt
+                    },
+                    {
+                        "role": "user",
+                        "content": json.dumps({
+                            "user_request": user_input,
+                            "selected_action": action,
+                            "tool_result": tool_result
+                        })
+                    }
+                ],
+                temperature=0,
+                max_tokens=500,
+                response_format={
+                    "type": "json_object"
                 },
-                {
-                    "role": "user",
-                    "content": json.dumps({
-                        "user_request": user_input,
-                        "selected_action": action,
-                        "tool_result": tool_result
-                    })
-                }
-            ],
-            temperature=0,
-            max_tokens=500,
-            response_format={
-                "type": "json_object"
-            },
+            )
         )
-    )
 
-    return {
-        "status": "success",
-        "agent": self.name,
-        "action": action,
-        "tool_result": tool_result,
-        "response": (
-            response
-            .choices[0]
-            .message
-            .content
-        )
-    }
-        
-        
-        
-     
+        return {
+            "status": "success",
+            "agent": self.name,
+            "action": action,
+            "tool_result": tool_result,
+            "response": (
+                response
+                .choices[0]
+                .message
+                .content
+            )
+        }
 
     def general_response(self, user_input: str):
 
@@ -531,4 +536,4 @@ Rules:
                 .message
                 .content
             )
-            }
+        }
